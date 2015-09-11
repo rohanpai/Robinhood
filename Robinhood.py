@@ -22,7 +22,7 @@ class Robinhood:
             "quotes":"https://api.robinhood.com/quotes/",
             "document_requests":"https://api.robinhood.com/upload/document_requests/",
             "user":"https://api.robinhood.com/user/",
-            "watchlists":"https://api.robinhood.com/watchlists/"
+            "watchlists":"https://api.robinhood.com/watchlists/",
     }
 
     session = None
@@ -34,6 +34,8 @@ class Robinhood:
     headers = None
 
     auth_token = None
+
+    account_url = None
 
     def __init__(self, username, password):
         self.session = requests.session()
@@ -49,15 +51,28 @@ class Robinhood:
             "Connection": "keep-alive",
             "User-Agent": "Robinhood/823 (iPhone; iOS 7.1.2; Scale/2.00)"
         }
+        
         self.session.headers = self.headers
         self.login()
+        
+        ## set account url
+        acc = self.get_account_number()
+        self.account_url = self.endpoints['accounts'] + acc + "/"
 
+ 
     def login(self):
         data = "password=%s&username=%s" % (self.password, self.username)
         res = self.session.post(self.endpoints['login'], data=data)
         res = res.json()
         self.auth_token = res['token']
         self.headers['Authorization'] = 'Token '+self.auth_token
+
+    def get_account_number(self):
+        res = self.session.get(self.endpoints['ach_relationships'])
+        res =  res.json()['results'][0]
+        account_number = res['account'].split('accounts/', 1)[1][:-1]
+        print account_number
+        return account_number
 
     def investment_profile(self):
         self.session.get(self.endpoints['investment_profile'])
@@ -76,7 +91,7 @@ class Robinhood:
     def place_order(self, instrument, quantity=1, bid_price = None, transaction=None):
         if bid_price == None:
             bid_price = self.quote_data(instrument['symbol'])[0]['bid_price']
-        data = 'account=%s&instrument=%s&price=%f&quantity=%d&side=buy&symbol=%s&time_in_force=gfd&trigger=immediate&type=market' % (urllib.quote('https://api.robinhood.com/accounts/5PY93481/'), urllib.unquote(instrument['url']), float(bid_price), quantity, instrument['symbol']) 
+        data = 'account=%s&instrument=%s&price=%f&quantity=%d&side=%s&symbol=%s&time_in_force=gfd&trigger=immediate&type=market' % (urllib.quote(self.account_url), urllib.unquote(instrument['url']), float(bid_price), quantity, transaction, instrument['symbol']) 
         res = self.session.post(self.endpoints['orders'], data=data)
         return res
 
